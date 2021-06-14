@@ -76,3 +76,5 @@ steps:
     commands:
       public:
         - run: kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env XXX=broker1:5672
+
+# kubectl delete namespace/public namespace/private && kubectl delete -f strimzi.yaml
