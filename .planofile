@@ -19,7 +19,3 @@ def test(app):
 @command
 def test_external(app, public_kubeconfig, private_kubeconfig):
     run_steps_external("skewer.yaml", public=public_kubeconfig, private=private_kubeconfig)
-
-@command
-def run_broker(app):
-    run("podman run -it -p 45672:5672 -e AMQ_USER=admin -e AMQ_PASSWORD=admin quay.io/artemiscloud/activemq-artemis-broker")

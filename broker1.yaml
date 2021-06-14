@@ -19,8 +19,8 @@ spec:
           image: quay.io/artemiscloud/activemq-artemis-broker
           env:
             - name: AMQ_USER
-              value: admin
+              value: example
             - name: AMQ_PASSWORD
-              value: peripatetic-possum
+              value: example
           ports:
             - containerPort: 5672

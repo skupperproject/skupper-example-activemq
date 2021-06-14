@@ -1,4 +1,4 @@
-# Accessing a message broker using Skupper
+# Accessing an ActiveMQ message broker using Skupper
 
 Use public cloud resources to process data from a private message broker
 
@@ -9,26 +9,26 @@ Use public cloud resources to process data from a private message broker
 * [Step 3: Set the current namespaces](#step-3-set-the-current-namespaces)
 * [Step 4: Install Skupper in your namespaces](#step-4-install-skupper-in-your-namespaces)
 * [Step 5: Link your namespaces](#step-5-link-your-namespaces)
-* [Step 6: Deploy and expose the message broker](#step-6-deploy-and-expose-the-message-broker)
-* [Step 7: Deploy the frontend and worker services](#step-7-deploy-the-frontend-and-worker-services)
-* [Step 8: Test the application](#step-8-test-the-application)
+* [Step 6: Deploy the message broker](#step-6-deploy-the-message-broker)
+* [Step 7: Expose the message broker](#step-7-expose-the-message-broker)
+* [Step 8: Run the client](#step-8-run-the-client)
 
 ## Overview
 
-This example is a multi-service messaging application that can
-be deployed across multiple Kubernetes clusters using Skupper.
+This example is a simple message application that shows how you can
+use Skupper to access an ActiveMQ broker at a remote site without
+exposing it to the public internet.
 
-It contains three services:
+It contains two services:
 
-* A message broker running in a private data center.  The broker has
-  three queues: "requests", "responses", and "worker-status".
+* An ActiveMQ broker named "broker1" running in a private data center.
+  The broker has a queue named "queue1".
 
-* A frontend service running in the private data center.  It serves
-  a REST API for sending requests and getting responses.
+* An AMQP client running in the public cloud.  It sends 10 messages
+  to "queue1" and then receives them back.
 
-* A worker service running in the public cloud.  It receives from
-  the request queue, does some work, and sends the result to the
-  response queue.  It also sends periodic status updates.
+The example uses two Kubernetes namespaces, "private" and "public",
+to represent the private data center and public cloud.
 
 ## Prerequisites
 
@@ -67,16 +67,16 @@ Start a console session for each of your namespaces.  Set the
 session.
 
 
-Console for _cloud-provider_:
+Console for _public_:
 
 ~~~ shell
-export KUBECONFIG=~/.kube/config-cloud-provider
+export KUBECONFIG=~/.kube/config-public
 ~~~
 
-Console for _data-center_:
+Console for _private_:
 
 ~~~ shell
-export KUBECONFIG=~/.kube/config-data-center
+export KUBECONFIG=~/.kube/config-private
 ~~~
 
 ## Step 2: Log in to your clusters
@@ -101,18 +101,18 @@ use (or use existing namespaces).  Use `kubectl config set-context` to
 set the current namespace for each session.
 
 
-Console for _cloud-provider_:
+Console for _public_:
 
 ~~~ shell
-kubectl create namespace cloud-provider
-kubectl config set-context --current --namespace cloud-provider
+kubectl create namespace public
+kubectl config set-context --current --namespace public
 ~~~
 
-Console for _data-center_:
+Console for _private_:
 
 ~~~ shell
-kubectl create namespace data-center
-kubectl config set-context --current --namespace data-center
+kubectl create namespace private
+kubectl config set-context --current --namespace private
 ~~~
 
 ## Step 4: Install Skupper in your namespaces
@@ -127,13 +127,13 @@ in each namespace.
 tunnel`][minikube-tunnel] before you install Skupper.
 
 
-Console for _cloud-provider_:
+Console for _public_:
 
 ~~~ shell
 skupper init
 ~~~
 
-Console for _data-center_:
+Console for _private_:
 
 ~~~ shell
 skupper init --ingress none
@@ -154,49 +154,45 @@ token can link to your namespace.  Make sure that only those you trust
 have access to it.
 
 
-Console for _cloud-provider_:
+Console for _public_:
 
 ~~~ shell
-skupper token create ~/cloud-provider.token
+skupper token create ~/public.token
 ~~~
 
-Console for _data-center_:
+Console for _private_:
 
 ~~~ shell
-skupper link create ~/cloud-provider.token
+skupper link create ~/public.token
 skupper link status --wait 30
 ~~~
 
-## Step 6: Deploy and expose the message broker
+## Step 6: Deploy the message broker
 
-Console for _data-center_:
+Console for _private_:
 
 ~~~ shell
-kubectl apply -f message-broker.yaml
-skupper expose deployment/message-broker --port 5672
+kubectl apply -f broker1.yaml
 ~~~
 
-## Step 7: Deploy the frontend and worker services
+## Step 7: Expose the message broker
 
-Console for _cloud-provider_:
+Console for _private_:
 
 ~~~ shell
-kubectl create deployment worker --image quay.io/skupper/job-queue-worker
+skupper expose deployment/broker1 --port 5672
 ~~~
 
-Console for _data-center_:
+Console for _public_:
 
 ~~~ shell
-kubectl create deployment frontend --image quay.io/skupper/job-queue-frontend
-kubectl expose deployment/frontend --port 8080 --type LoadBalancer
+kubectl get services
 ~~~
 
-## Step 8: Test the application
+## Step 8: Run the client
 
-Console for _data-center_:
+Console for _public_:
 
 ~~~ shell
-curl -i $(kubectl get service/frontend -o jsonpath='http://{.status.loadBalancer.ingress[0].ip}:8080/api/send-request') -d text=hello
-curl -i $(kubectl get service/frontend -o jsonpath='http://{.status.loadBalancer.ingress[0].ip}:8080/api/responses')
-curl -i $(kubectl get service/frontend -o jsonpath='http://{.status.loadBalancer.ingress[0].ip}:8080/api/worker-status')
+kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1
 ~~~

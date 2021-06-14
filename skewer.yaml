@@ -1,7 +1,7 @@
 title: Accessing an ActiveMQ message broker using Skupper
 subtitle: |-
   Use public cloud resources to process data from a private message broker
-overview:
+overview: |-
   This example is a simple message application that shows how you can
   use Skupper to access an ActiveMQ broker at a remote site without
   exposing it to the public internet.
@@ -75,6 +75,6 @@ steps:
   - title: Run the client
     commands:
       public:
-        - run: kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env XXX=broker1:5672
+        - run: kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1
 
 # kubectl delete namespace/public namespace/private && kubectl delete -f strimzi.yaml
