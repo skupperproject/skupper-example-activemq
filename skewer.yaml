@@ -1,0 +1,78 @@
+title: Accessing an ActiveMQ message broker using Skupper
+subtitle: |-
+  Use public cloud resources to process data from a private message broker
+overview:
+  This example is a simple message application that shows how you can
+  use Skupper to access an ActiveMQ broker at a remote site without
+  exposing it to the public internet.
+
+  It contains two services:
+
+  * An ActiveMQ broker named "broker1" running in a private data center.
+    The broker has a queue named "queue1".
+
+  * An AMQP client running in the public cloud.  It sends 10 messages
+    to "queue1" and then receives them back.
+
+  The example uses two Kubernetes namespaces, "private" and "public",
+  to represent the private data center and public cloud.
+prerequisites: !string prerequisites
+contexts:
+  public:
+    kubeconfig: ~/.kube/config-public
+    namespace: public
+  private:
+    kubeconfig: ~/.kube/config-private
+    namespace: private
+steps:
+  - title: Configure separate console sessions
+    preamble: !string configure_separate_console_sessions_preamble
+    commands:
+      public:
+        - run: export KUBECONFIG=~/.kube/config-public
+      private:
+        - run: export KUBECONFIG=~/.kube/config-private
+  - title: Log in to your clusters
+    preamble: !string log_in_to_your_clusters_preamble
+  - title: Set the current namespaces
+    preamble: !string set_the_current_namespaces_preamble
+    commands:
+      public:
+        - run: kubectl create namespace public
+        - run: kubectl config set-context --current --namespace public
+      private:
+        - run: kubectl create namespace private
+        - run: kubectl config set-context --current --namespace private
+  - title: Install Skupper in your namespaces
+    preamble: !string install_skupper_in_your_namespaces_preamble
+    commands:
+      public:
+        - run: skupper init
+          await: [deployment/skupper-service-controller, deployment/skupper-router]
+      private:
+        - run: skupper init --ingress none
+          await: [deployment/skupper-service-controller, deployment/skupper-router]
+  - title: Link your namespaces
+    preamble: !string link_your_namespaces_preamble
+    commands:
+      public:
+        - run: skupper token create ~/public.token
+      private:
+        - run: skupper link create ~/public.token
+        - run: skupper link status --wait 30
+  - title: Deploy the message broker
+    commands:
+      private:
+        - run: kubectl apply -f broker1.yaml
+          await: [deployment/broker1]
+  - title: Expose the message broker
+    commands:
+      private:
+        - run: skupper expose deployment/broker1 --port 5672
+      public:
+        - run: kubectl get services
+          await: [service/broker1]
+  - title: Run the client
+    commands:
+      public:
+        - run: kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env XXX=broker1:5672
