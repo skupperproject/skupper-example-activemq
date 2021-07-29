@@ -7,18 +7,12 @@ This repo uses [skewer](https://github.com/skupperproject/skewer) to:
 
 ## Using skewer
 
-To use skewer, you must install [plano](https://github.com/ssorj/plano) (included in this repo):
+To use skewer, you run `./plano`, for example, after modifying code, you can test the changes:
 
-```
-cd subrepos/skewer/subrepos/plano
-make
-make install
-```
-
-You can then test the example using the following command:
 ```
 plano test
 ```
+
 Note that this runs the example in a minikube profile, named `skewer` and deletes this profile after completing.
 
 You can regenerate the `README.md` using the following command:
