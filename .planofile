@@ -2,15 +2,24 @@ from skewer import *
 
 @command
 def generate(app):
+    """
+    Generate README.md from the data in skewer.yaml
+    """
     generate_readme("skewer.yaml", "README.md")
 
 @command
 def render(app):
+    """
+    Generate README.md and render it as README.html
+    """
     generate(app)
     run(f"pandoc -o README.html README.md")
 
 @command
 def test(app):
+    """
+    Test the steps using Minikube
+    """
     with temp_file() as temp:
         generate_readme("skewer.yaml", temp)
 
@@ -18,4 +27,7 @@ def test(app):
 
 @command
 def test_external(app, public_kubeconfig, private_kubeconfig):
+    """
+    Test the steps with user-provided kubeconfigs
+    """
     run_steps_external("skewer.yaml", public=public_kubeconfig, private=private_kubeconfig)
