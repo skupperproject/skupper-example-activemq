@@ -21,6 +21,101 @@ from plano import *
 
 import yaml as _yaml
 
+class _StringCatalog(dict):
+    def __init__(self, path):
+        super(_StringCatalog, self).__init__()
+
+        self.path = "{0}.strings".format(split_extension(path)[0])
+
+        check_file(self.path)
+
+        key = None
+        out = list()
+
+        for line in read_lines(self.path):
+            line = line.rstrip()
+
+            if line.startswith("[") and line.endswith("]"):
+                if key:
+                    self[key] = "".join(out).strip()
+
+                out = list()
+                key = line[1:-1]
+
+                continue
+
+            out.append(line)
+            out.append("\n")
+
+        self[key] = "".join(out).strip()
+
+    def __repr__(self):
+        return format_repr(self)
+
+_strings = _StringCatalog(__file__)
+
+_standard_steps = {
+    "configure_separate_console_sessions": {
+        "title": "Configure separate console sessions",
+        "preamble": _strings["configure_separate_console_sessions_preamble"],
+        "commands": [
+            [{"run": "export KUBECONFIG=~/.kube/config-@namespace@"}],
+            [{"run": "export KUBECONFIG=~/.kube/config-@namespace@"}],
+        ],
+    },
+    "access_your_clusters": {
+        "title": "Access your clusters",
+        "preamble": _strings["access_your_clusters_preamble"],
+    },
+    "set_up_your_namespaces": {
+        "title": "Set up your namespaces",
+        "preamble": _strings["set_up_your_namespaces_preamble"],
+        "commands": [
+            [
+                {"run": "kubectl create namespace @namespace@"},
+                {"run": "kubectl config set-context --current --namespace @namespace@"},
+            ],
+            [
+                {"run": "kubectl create namespace @namespace@"},
+                {"run": "kubectl config set-context --current --namespace @namespace@"},
+            ],
+        ],
+    },
+    "install_skupper_in_your_namespaces": {
+        "title": "Install Skupper in your namespaces",
+        "preamble": _strings["install_skupper_in_your_namespaces_preamble"],
+        "commands": [
+            [{
+                "run": "skupper init",
+                "await": ["deployment/skupper-service-controller", "deployment/skupper-router"],
+            }],
+            [{
+                "run": "skupper init --ingress none",
+                "await": ["deployment/skupper-service-controller", "deployment/skupper-router"],
+            }],
+        ],
+        "postamble": _strings["install_skupper_in_your_namespaces_postamble"],
+    },
+    "check_the_status_of_your_namespaces": {
+        "title": "Check the status of your namespaces",
+        "preamble": _strings["check_the_status_of_your_namespaces_preamble"],
+        "commands": [
+            [{
+                "run": "skupper status",
+            }],
+            [{
+                "run": "skupper status",
+            }],
+        ],
+        "postamble": _strings["check_the_status_of_your_namespaces_postamble"],
+    },
+}
+
+def _string_loader(loader, node):
+    return _strings[node.value]
+
+_yaml.SafeLoader.add_constructor("!string", _string_loader)
+
 def check_environment():
     check_program("kubectl")
     check_program("skupper")
@@ -72,65 +167,82 @@ def run_steps_on_minikube(skewer_file):
     with open(skewer_file) as file:
         skewer_data = _yaml.safe_load(file)
 
+    _apply_standard_steps(skewer_data)
+
     work_dir = make_temp_dir()
-    minikube_profile = "skewer"
 
     try:
-        run(f"minikube start -p {minikube_profile}")
+        run(f"minikube -p skewer start")
 
-        contexts = skewer_data["contexts"]
-
-        for name, value in contexts.items():
+        for name, value in skewer_data["contexts"].items():
             kubeconfig = value["kubeconfig"].replace("~", work_dir)
 
             with working_env(KUBECONFIG=kubeconfig):
-                run(f"minikube update-context")
+                run(f"minikube -p skewer update-context")
                 check_file(ENV["KUBECONFIG"])
 
         with open("/tmp/minikube-tunnel-output", "w") as tunnel_output_file:
-            with start("minikube tunnel", output=tunnel_output_file):
-                execute_steps(work_dir, skewer_data)
+            with start(f"minikube -p skewer tunnel", output=tunnel_output_file):
+                _run_steps(work_dir, skewer_data)
     finally:
-        run(f"minikube delete -p {minikube_profile}")
+        run(f"minikube -p skewer delete")
 
 def run_steps_external(skewer_file, **kubeconfigs):
     with open(skewer_file) as file:
         skewer_data = _yaml.safe_load(file)
 
+    _apply_standard_steps(skewer_data)
+
     work_dir = make_temp_dir()
-    contexts = skewer_data["contexts"]
 
     for name, kubeconfig in kubeconfigs.items():
-        contexts[name]["kubeconfig"] = kubeconfig
+        skewer_data["contexts"][name]["kubeconfig"] = kubeconfig
 
-    execute_steps(work_dir, skewer_data)
+    _run_steps(work_dir, skewer_data)
 
-def execute_steps(work_dir, skewer_data):
+def _run_steps(work_dir, skewer_data):
     contexts = skewer_data["contexts"]
 
     for step_data in skewer_data["steps"]:
-        if "commands" not in step_data:
-            continue
+        _run_step(work_dir, skewer_data, step_data)
 
-        for context_name, commands in step_data["commands"].items():
-            kubeconfig = contexts[context_name]["kubeconfig"].replace("~", work_dir)
+    if "cleaning_up" in skewer_data:
+        _run_step(work_dir, skewer_data, skewer_data["cleaning_up"])
 
-            with working_env(KUBECONFIG=kubeconfig):
-                for command in commands:
-                    run(command["run"].replace("~", work_dir), shell=True)
+def _run_step(work_dir, skewer_data, step_data):
+    if "commands" not in step_data:
+        return
 
-                    if "await" in command:
-                        for resource in command["await"]:
-                            group, name = resource.split("/", 1)
-                            await_resource(group, name)
+    if "title" in step_data:
+        notice("Running step '{}'", step_data["title"])
 
-                    if "await_external_ip" in command:
-                        for resource in command["await_external_ip"]:
-                            group, name = resource.split("/", 1)
-                            await_external_ip(group, name)
+    try:
+        items = step_data["commands"].items()
+    except AttributeError:
+        items = list()
 
-                    if "sleep" in command:
-                        sleep(command["sleep"])
+        for context_name in skewer_data["contexts"]:
+            items.append((context_name, step_data["commands"]))
+
+    for context_name, commands in items:
+        kubeconfig = skewer_data["contexts"][context_name]["kubeconfig"].replace("~", work_dir)
+
+        with working_env(KUBECONFIG=kubeconfig):
+            for command in commands:
+                run(command["run"].replace("~", work_dir), shell=True)
+
+                if "await" in command:
+                    for resource in command["await"]:
+                        group, name = resource.split("/", 1)
+                        await_resource(group, name)
+
+                if "await_external_ip" in command:
+                    for resource in command["await_external_ip"]:
+                        group, name = resource.split("/", 1)
+                        await_external_ip(group, name)
+
+                if "sleep" in command:
+                    sleep(command["sleep"])
 
 def generate_readme(skewer_file, output_file):
     with open(skewer_file) as file:
@@ -140,10 +252,28 @@ def generate_readme(skewer_file, output_file):
 
     out.append(f"# {skewer_data['title']}")
     out.append("")
-    out.append(skewer_data["subtitle"])
+
+    if "github_actions_url" in skewer_data:
+        url = skewer_data["github_actions_url"]
+        out.append(f"[![main]({url}/badge.svg)]({url})")
+        out.append("")
+
+    if "subtitle" in skewer_data:
+        out.append(f"#### {skewer_data['subtitle']}")
+        out.append("")
+
+    out.append(_strings["example_suite_para"])
     out.append("")
-    out.append("* [Overview](#overview)")
-    out.append("* [Prerequisites](#prerequisites)")
+    out.append("#### Contents")
+    out.append("")
+
+    if "overview" in skewer_data:
+        out.append("* [Overview](#overview)")
+
+    if "prerequisites" in skewer_data:
+        out.append("* [Prerequisites](#prerequisites)")
+
+    _apply_standard_steps(skewer_data)
 
     for i, step_data in enumerate(skewer_data["steps"], 1):
         title = f"Step {i}: {step_data['title']}"
@@ -155,78 +285,133 @@ def generate_readme(skewer_file, output_file):
 
         out.append(f"* [{title}](#{fragment})")
 
-    out.append("")
-    out.append("## Overview")
-    out.append("")
-    out.append(skewer_data["overview"])
+    if "summary" in skewer_data:
+        out.append("* [Summary](#summary)")
+
+    if "cleaning_up" in skewer_data:
+        out.append("* [Cleaning up](#cleaning-up)")
+
+    if "next_steps" in skewer_data:
+        out.append("* [Next steps](#next-steps)")
 
     out.append("")
-    out.append("## Prerequisites")
-    out.append("")
-    out.append(skewer_data["prerequisites"])
+
+    if "overview" in skewer_data:
+        out.append("## Overview")
+        out.append("")
+        out.append(skewer_data["overview"].strip())
+        out.append("")
+
+    if "prerequisites" in skewer_data:
+        out.append("## Prerequisites")
+        out.append("")
+        out.append(skewer_data["prerequisites"].strip())
+        out.append("")
 
     for i, step_data in enumerate(skewer_data["steps"], 1):
-        out.append("")
         out.append(f"## Step {i}: {step_data['title']}")
+        out.append("")
+        out.append(_generate_readme_step(skewer_data, step_data))
+        out.append("")
 
-        if "preamble" in step_data:
-            out.append("")
-            out.append(step_data["preamble"])
+    if "summary" in skewer_data:
+        out.append("## Summary")
+        out.append("")
+        out.append(skewer_data["summary"].strip())
+        out.append("")
 
-        if "commands" in step_data:
-            for context_name, commands in step_data["commands"].items():
+    if "cleaning_up" in skewer_data:
+        out.append("## Cleaning up")
+        out.append("")
+        out.append(_generate_readme_step(skewer_data, skewer_data["cleaning_up"]))
+        out.append("")
+
+    if "next_steps" in skewer_data:
+        out.append("## Next steps")
+        out.append("")
+        out.append(skewer_data["next_steps"].strip())
+
+    write(output_file, "\n".join(out).strip() + "\n")
+
+def _generate_readme_step(skewer_data, step_data):
+    out = list()
+
+    if "preamble" in step_data:
+        out.append(step_data["preamble"].strip())
+        out.append("")
+
+    if "commands" in step_data:
+        try:
+            items = step_data["commands"].items()
+        except AttributeError:
+            items = ((None, step_data["commands"]),)
+
+        for context_name, commands in items:
+            outputs = list()
+
+            if context_name:
                 namespace = skewer_data["contexts"][context_name]["namespace"]
-
-                out.append("")
                 out.append(f"Console for _{namespace}_:")
                 out.append("")
-                out.append("~~~ shell")
+            else:
+                out.append("Console:")
+                out.append("")
 
-                for command in commands:
-                    out.append(command["run"])
+            out.append("~~~ shell")
 
+            for command in commands:
+                out.append(command["run"])
+
+                if "output" in command:
+                    outputs.append((command["run"], command["output"]))
+
+            out.append("~~~")
+            out.append("")
+
+            if outputs:
+                out.append("Sample output:")
+                out.append("")
                 out.append("~~~")
 
-        if "postamble" in step_data:
-            out.append("")
-            out.append(skewer_data["postamble"])
+                if len(outputs) > 1:
+                    out.append("\n\n".join((f"$ {run}\n{output.strip()}" for run, output in outputs)))
+                else:
+                    out.append(outputs[0][1].strip())
 
-    write(output_file, "\n".join(out))
+                out.append("~~~")
+                out.append("")
 
-class _StringCatalog(dict):
-    def __init__(self, path):
-        super(_StringCatalog, self).__init__()
+    if "postamble" in step_data:
+        out.append(step_data["postamble"].strip())
 
-        self.path = "{0}.strings".format(split_extension(path)[0])
+    return "\n".join(out).strip()
 
-        check_file(self.path)
+def _apply_standard_steps(skewer_data):
+    for step_data in skewer_data["steps"]:
+        if "standard" not in step_data:
+            continue
 
-        key = None
-        out = list()
+        standard_step_data = _standard_steps[step_data["standard"]]
 
-        for line in read_lines(self.path):
-            line = line.rstrip()
+        step_data["title"] = standard_step_data["title"]
 
-            if line.startswith("[") and line.endswith("]"):
-                if key:
-                    self[key] = "".join(out).strip() + "\n"
+        if "preamble" in standard_step_data:
+            step_data["preamble"] = standard_step_data["preamble"]
 
-                out = list()
-                key = line[1:-1]
+        if "postamble" in standard_step_data:
+            step_data["postamble"] = standard_step_data["postamble"]
 
-                continue
+        if "commands" in standard_step_data:
+            step_data["commands"] = dict()
 
-            out.append(line)
-            out.append("\r\n")
+            for i, item  in enumerate(skewer_data["contexts"].items()):
+                namespace, context_data = item
+                resolved_commands = list()
 
-        self[key] = "".join(out).strip() + "\n"
+                for command in standard_step_data["commands"][i]:
+                    resolved_command = dict(command)
+                    resolved_command["run"] = command["run"].replace("@namespace@", namespace)
 
-    def __repr__(self):
-        return format_repr(self)
+                    resolved_commands.append(resolved_command)
 
-_strings = _StringCatalog(__file__)
-
-def _string_loader(loader, node):
-    return _strings[node.value]
-
-_yaml.SafeLoader.add_constructor("!string", _string_loader)
+                step_data["commands"][namespace] = resolved_commands
