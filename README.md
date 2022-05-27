@@ -24,24 +24,33 @@ across cloud providers, data centers, and edge sites.
 * [Step 7: Deploy the message broker](#step-7-deploy-the-message-broker)
 * [Step 8: Expose the message broker](#step-8-expose-the-message-broker)
 * [Step 9: Run the client](#step-9-run-the-client)
+* [Accessing the web console](#accessing-the-web-console)
 * [Cleaning up](#cleaning-up)
 
 ## Overview
 
-This example is a simple message application that shows how you can
-use Skupper to access an ActiveMQ broker at a remote site without
-exposing it to the public internet.
+This example is a simple messaging application that shows how you
+can use Skupper to access an ActiveMQ broker at a remote site
+without exposing it to the public internet.
 
 It contains two services:
 
-* An ActiveMQ broker named "broker1" running in a private data center.
-  The broker has a queue named "queue1".
+* An ActiveMQ broker running in a private data center.  The broker
+  has a queue named "notifications".
 
 * An AMQP client running in the public cloud.  It sends 10 messages
-  to "queue1" and then receives them back.
+  to "notifications" and then receives them back.
+
+For the broker, this example uses the [Apache ActiveMQ
+Artemis][artemis] image from [ArtemisCloud.io][artemiscloud].  The
+client is a simple [Quarkus][quarkus] application.
 
 The example uses two Kubernetes namespaces, "private" and "public",
 to represent the private data center and public cloud.
+
+[artemis]: https://activemq.apache.org/components/artemis/
+[artemiscloud]: https://artemiscloud.io/
+[quarkus]: https://quarkus.io/
 
 ## Prerequisites
 
@@ -277,33 +286,141 @@ creation.
 
 ## Step 7: Deploy the message broker
 
+In the private namespace, use the `kubectl apply` command to
+install the broker.
+
 _**Console for private:**_
 
 ~~~ shell
-kubectl apply -f broker1.yaml
+kubectl apply -f broker
+~~~
+
+_Sample output:_
+
+~~~ console
+$ kubectl apply -f broker
+deployment.apps/broker created
 ~~~
 
 ## Step 8: Expose the message broker
 
+In the private namespace, use `skupper expose` to expose the
+broker on the Skupper network.
+
+Then, in the public namespace, use `kubectl get service/broker`
+to check that the service appears after a moment.
+
 _**Console for private:**_
 
 ~~~ shell
-skupper expose deployment/broker1 --port 5672
+skupper expose deployment/broker --port 5672
+~~~
+
+_Sample output:_
+
+~~~ console
+$ skupper expose deployment/broker --port 5672
+deployment broker exposed as broker
 ~~~
 
 _**Console for public:**_
 
 ~~~ shell
-kubectl get services
+kubectl get service/broker
+~~~
+
+_Sample output:_
+
+~~~ console
+$ kubectl get service/broker
+NAME     TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+broker   ClusterIP   10.100.58.95   <none>        5672/TCP   2s
 ~~~
 
 ## Step 9: Run the client
 
+In the public namespace, use `kubectl run` to run the client.
+
 _**Console for public:**_
 
 ~~~ shell
-kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker1
+kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker
 ~~~
+
+_Sample output:_
+
+~~~ console
+$ kubectl run client --attach --rm --restart Never --image quay.io/skupper/activemq-example-client --env SERVER=broker
+__  ____  __  _____   ___  __ ____  ______
+ --/ __ \/ / / / _ | / _ \/ //_/ / / / __/
+ -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \
+--\___\_\____/_/ |_/_/|_/_/|_|\____/___/
+2022-05-27 11:19:07,149 INFO  [io.sma.rea.mes.amqp] (main) SRMSG16201: AMQP broker configured to broker:5672 for channel incoming-messages
+2022-05-27 11:19:07,170 INFO  [io.sma.rea.mes.amqp] (main) SRMSG16201: AMQP broker configured to broker:5672 for channel outgoing-messages
+2022-05-27 11:19:07,198 INFO  [io.sma.rea.mes.amqp] (main) SRMSG16212: Establishing connection with AMQP broker
+2022-05-27 11:19:07,212 INFO  [io.sma.rea.mes.amqp] (main) SRMSG16212: Establishing connection with AMQP broker
+2022-05-27 11:19:07,215 INFO  [io.quarkus] (main) client 1.0.0-SNAPSHOT on JVM (powered by Quarkus 2.9.2.Final) started in 0.397s.
+2022-05-27 11:19:07,215 INFO  [io.quarkus] (main) Profile prod activated.
+2022-05-27 11:19:07,215 INFO  [io.quarkus] (main) Installed features: [cdi, smallrye-context-propagation, smallrye-reactive-messaging, smallrye-reactive-messaging-amqp, vertx]
+Sent message 1
+Sent message 2
+Sent message 3
+Sent message 4
+Sent message 5
+Sent message 6
+Sent message 7
+Sent message 8
+Sent message 9
+Sent message 10
+2022-05-27 11:19:07,434 INFO  [io.sma.rea.mes.amqp] (vert.x-eventloop-thread-0) SRMSG16213: Connection with AMQP broker established
+2022-05-27 11:19:07,442 INFO  [io.sma.rea.mes.amqp] (vert.x-eventloop-thread-0) SRMSG16213: Connection with AMQP broker established
+2022-05-27 11:19:07,468 INFO  [io.sma.rea.mes.amqp] (vert.x-eventloop-thread-0) SRMSG16203: AMQP Receiver listening address notifications
+Received message 1
+Received message 2
+Received message 3
+Received message 4
+Received message 5
+Received message 6
+Received message 7
+Received message 8
+Received message 9
+Received message 10
+Result: OK
+~~~
+
+## Accessing the web console
+
+Skupper includes a web console you can use to view the application
+network.  To access it, use `skupper status` to look up the URL of
+the web console.  Then use `kubectl get
+secret/skupper-console-users` to look up the console admin
+password.
+
+**Note:** The `<console-url>` and `<password>` fields in the
+following commands are placeholders.  The actual values are
+specific to your environment.
+
+_**Console for public:**_
+
+~~~ shell
+skupper status
+kubectl get secret/skupper-console-users -o jsonpath={.data.admin} | base64 -d
+~~~
+
+_Sample output:_
+
+~~~ console
+$ skupper status
+Skupper is enabled for namespace "public" in interior mode. It is connected to 1 other site. It has 1 exposed service.
+The site console url is: <console-url>
+The credentials for internal console-auth mode are held in secret: 'skupper-console-users'
+
+$ kubectl get secret/skupper-console-users -o jsonpath={.data.admin} | base64 -d
+<password>
+~~~
+
+Navigate to `<console-url>` in your browser.  When prompted, log
+in as user `admin` and enter the password.
 
 ## Cleaning up
 
@@ -313,7 +430,7 @@ the following commands.
 _**Console for private:**_
 
 ~~~ shell
-kubectl delete -f broker1.yaml
+kubectl delete -f broker
 skupper delete
 ~~~
 
