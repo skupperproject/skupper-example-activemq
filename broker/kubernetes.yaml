@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: broker1
+  name: broker
   labels:
-    app: broker1
+    app: broker
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: broker1
+      app: broker
   template:
     metadata:
       labels:
-        app: broker1
+        app: broker
     spec:
       containers:
-        - name: broker1
+        - name: broker
           image: quay.io/artemiscloud/activemq-artemis-broker
           env:
             - name: AMQ_USER

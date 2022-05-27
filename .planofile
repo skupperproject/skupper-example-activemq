@@ -10,24 +10,36 @@ def generate(app):
 @command
 def render(app):
     """
-    Generate README.md and render it as README.html
+    Render README.html from the data in skewer.yaml
     """
+    check_program("pandoc")
+
     generate(app)
+
     run(f"pandoc -o README.html README.md")
+
+    print(f"file:{get_real_path('README.html')}")
 
 @command
 def test(app):
     """
-    Test the steps using Minikube
+    Test the example using Minikube
     """
-    with temp_file() as temp:
-        generate_readme("skewer.yaml", temp)
-
+    generate_readme("skewer.yaml", make_temp_file())
     run_steps_on_minikube("skewer.yaml")
 
 @command
-def test_external(app, public_kubeconfig, private_kubeconfig):
+def test_external(app, west_kubeconfig, east_kubeconfig):
     """
-    Test the steps with user-provided kubeconfigs
+    Test the example against external clusters
     """
-    run_steps_external("skewer.yaml", public=public_kubeconfig, private=private_kubeconfig)
+    generate_readme("skewer.yaml", make_temp_file())
+    run_steps_external("skewer.yaml", west=west_kubeconfig, east=east_kubeconfig)
+
+@command
+def demo(app):
+    """
+    Run the example steps and pause before cleaning up
+    """
+    with working_env(SKEWER_DEMO=1):
+        run_steps_on_minikube("skewer.yaml")
