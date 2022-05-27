@@ -8,10 +8,10 @@ overview: |
   It contains two services:
 
   * An ActiveMQ broker running in a private data center.  The broker
-    has a queue named "queue1".
+    has a queue named "notifications".
 
   * An AMQP client running in the public cloud.  It sends 10 messages
-    to "queue1" and then receives them back.
+    to "notifications" and then receives them back.
 
   The example uses two Kubernetes namespaces, "private" and "public",
   to represent the private data center and public cloud.
