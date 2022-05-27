@@ -1,5 +1,6 @@
 title: Accessing an ActiveMQ message broker using Skupper
 subtitle: Use public cloud resources to process data from a private message broker
+github_actions_url: https://github.com/skupperproject/skupper-example-activemq/actions/workflows/main.yaml
 overview: |
   This example is a simple messaging application that shows how you
   can use Skupper to access an ActiveMQ broker at a remote site
