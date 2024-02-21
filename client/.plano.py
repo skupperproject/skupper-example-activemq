@@ -37,13 +37,9 @@ def clean():
 def run_():
     run(f"podman run --net host {image_tag} --host localhost --port 8080 --backend http://localhost:8081")
 
-# @command(name="run")
-# def run_():
-#     run("java -jar target/quarkus-app/quarkus-run.jar")
-
-# @command
-# def run_broker():
-#     run("podman run -it -p 5672:5672 -e AMQ_USER=example -e AMQ_PASSWORD=example quay.io/artemiscloud/activemq-artemis-broker")
+@command
+def run_broker():
+    run("podman run -it -p 5672:5672 -e AMQ_USER=example -e AMQ_PASSWORD=example quay.io/artemiscloud/activemq-artemis-broker")
 
 @command
 def debug():
@@ -53,13 +49,3 @@ def debug():
 def push():
     run("podman login quay.io")
     run(f"podman push {image_tag}")
-
-# @command
-# def build_image():
-#     build()
-#     run("podman build -t quay.io/skupper/activemq-example-client .")
-
-# @command
-# def push_image():
-#     build_image()
-#     run("podman push quay.io/skupper/activemq-example-client")
