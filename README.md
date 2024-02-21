@@ -1,4 +1,4 @@
-# Accessing an ActiveMQ message broker using Skupper
+# Accessing ActiveMQ using Skupper
 
 [![main](https://github.com/skupperproject/skupper-example-activemq/actions/workflows/main.yaml/badge.svg)](https://github.com/skupperproject/skupper-example-activemq/actions/workflows/main.yaml)
 

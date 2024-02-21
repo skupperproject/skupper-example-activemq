@@ -1,4 +1,4 @@
-title: Accessing an ActiveMQ message broker using Skupper
+title: Accessing ActiveMQ using Skupper
 subtitle: Use public cloud resources to process data from a private message broker
 overview: |
   This example is a simple messaging application that shows how you
