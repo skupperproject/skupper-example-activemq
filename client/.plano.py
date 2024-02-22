@@ -28,10 +28,6 @@ def build(no_cache=False):
     run(f"podman build {no_cache_arg} --format docker -t {image_tag} .")
 
 @command
-def clean():
-    run("mvn clean")
-
-@command
 def run_():
     run(f"podman run --net host {image_tag}")
 

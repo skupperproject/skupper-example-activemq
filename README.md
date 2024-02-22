@@ -137,8 +137,8 @@ kubectl config set-context --current --namespace private
 
 ## Step 3: Deploy the message broker
 
-In the private namespace, use the `kubectl apply` command to
-install the broker.
+In Private, use the `kubectl apply` command to install the
+broker.
 
 _**Private:**_
 
@@ -267,11 +267,11 @@ creation.
 
 ## Step 6: Expose the message broker
 
-In the private namespace, use `skupper expose` to expose the
-broker on the Skupper network.
+In Private, use `skupper expose` to expose the broker on the
+Skupper network.
 
-Then, in the public namespace, use `kubectl get service/broker`
-to check that the service appears after a moment.
+Then, in Public, use `kubectl get service/broker` to check that
+the service appears after a moment.
 
 _**Private:**_
 
@@ -302,7 +302,7 @@ broker   ClusterIP   10.100.58.95   <none>        5672/TCP   2s
 
 ## Step 7: Run the client
 
-In the public namespace, use `kubectl run` to run the client.
+In Public, use `kubectl run` to run the client.
 
 _**Public:**_
 
