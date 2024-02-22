@@ -143,13 +143,13 @@ install the broker.
 _**Private:**_
 
 ~~~ shell
-kubectl apply -f broker
+kubectl apply -f server
 ~~~
 
 _Sample output:_
 
 ~~~ console
-$ kubectl apply -f broker
+$ kubectl apply -f server
 deployment.apps/broker created
 ~~~
 
@@ -359,7 +359,7 @@ the following commands.
 _**Private:**_
 
 ~~~ shell
-kubectl delete -f broker
+kubectl delete -f server
 skupper delete
 ~~~
 

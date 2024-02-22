@@ -19,27 +19,6 @@
 
 from plano import *
 
-image_tag = "quay.io/skupper/activemq-example-client"
-
-@command
-def build(no_cache=False):
-    no_cache_arg = "--no-cache" if no_cache else ""
-
-    run(f"podman build {no_cache_arg} --format docker -t {image_tag} .")
-
-@command
-def clean():
-    run("mvn clean")
-
 @command
 def run_():
-    run(f"podman run --net host {image_tag}")
-
-@command
-def debug():
-    run(f"podman run -it --net host --entrypoint /bin/sh {image_tag}")
-
-@command
-def push():
-    run("podman login quay.io")
-    run(f"podman push {image_tag}")
+    run("podman run -it -p 5672:5672 -e AMQ_USER=example -e AMQ_PASSWORD=example quay.io/artemiscloud/activemq-artemis-broker")

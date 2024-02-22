@@ -45,7 +45,7 @@ steps:
       install the broker.
     commands:
       private:
-        - run: kubectl apply -f broker
+        - run: kubectl apply -f server
           output: deployment.apps/broker created
   - standard: kubernetes/create_your_sites
   - standard: kubernetes/link_your_sites
@@ -113,7 +113,7 @@ steps:
   - standard: cleaning_up
     commands:
       private:
-        - run: kubectl delete -f broker
+        - run: kubectl delete -f server
         - run: skupper delete
       public:
         - run: skupper delete

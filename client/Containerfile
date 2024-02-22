@@ -17,10 +17,19 @@
 # under the License.
 #
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal
+FROM docker.io/library/maven:3-eclipse-temurin-21 AS build
 
-RUN microdnf -y install java-17-openjdk-headless && microdnf clean all
+COPY src /home/root/src
+COPY pom.xml /home/root/pom.xml
 
-COPY target/ /app/target
+WORKDIR /home/root
+RUN mvn package
 
-ENTRYPOINT ["java", "-jar", "/app/target/quarkus-app/quarkus-run.jar"]
+FROM eclipse-temurin:21 AS run
+
+RUN useradd -r fritz
+USER fritz
+
+COPY --from=build --chown=fritz:root /home/root/target/quarkus-app /home/fritz/quarkus-app
+
+ENTRYPOINT ["java", "-jar", "/home/fritz/quarkus-app/quarkus-run.jar"]
